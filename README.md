@@ -35,12 +35,18 @@ Keep the source directory if installing with `npm link`. Registration uses absol
 ## Setup
 
 1. Choose **中文 / English**.
-2. Enter the provider API base URL and a hidden API key. A root URL such as `https://api.example.com` becomes `https://api.example.com/v1`; a custom path such as `/gateway/v1` is preserved.
+2. Choose **Import from CC Switch** or enter an API base URL and hidden key manually. A root URL such as `https://api.example.com` becomes `https://api.example.com/v1`; a custom path such as `/gateway/v1` is preserved.
 3. Fetch `/models` to check connection and authentication. This step **does not generate an image or incur image-generation charges**. The provider may charge for API requests under its own policy.
 4. Choose whether to register with Codex. Setup invokes the official `codex mcp add` command and updates the entry with this name. If Codex cannot be found, it prints a manual TOML entry.
 5. Copy the supplied paragraph into your **Codex personalization instructions** to prefer this MCP for images. Setup does not edit those instructions automatically.
 
 Restart Codex or open a new chat after registration. No model or output directory is fixed in configuration.
+
+### Import the current CC Switch provider
+
+Choose this option in `init` and accept the default `~/.cc-switch` data directory, or enter your custom CC Switch directory. `CODEX_IMAGE_GEN_CCS_DIR` can override that default. The importer reads `settings.json` and opens `cc-switch.db` **read-only**. The local `currentProviderCodex` selection takes priority; if missing/stale, a single database `is_current` Codex provider is used. It parses only the selected provider's `settings_config`, using the active TOML model-provider table for the base URL and its API key configuration. It does not guess another table or select the first saved provider.
+
+The key is imported without displaying it, then the normal `/models` connection check runs. This is a **one-time copy** into this tool's own private config: later CC Switch changes do not automatically switch your image provider. Rerun `init` to import again. No CC Switch files are changed. API-key providers are supported; ChatGPT OAuth tokens and proxy placeholder keys are not imported. If import fails, setup offers manual entry. Older JSON-only CC Switch databases are not supported. Node.js 22 may print its built-in SQLite experimental notice during import.
 
 Example request to Codex:
 

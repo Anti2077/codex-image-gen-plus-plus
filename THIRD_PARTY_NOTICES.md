@@ -9,4 +9,6 @@ This is an independent implementation, not a fork. Related open-source projects 
 
 No source files from those projects are bundled. They do not endorse or maintain this project.
 
-Runtime dependencies include the official [Model Context Protocol TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk), Inquirer, Zod, and image-size. Their respective license texts are distributed with their npm packages. The project license does not replace dependency licenses.
+The importer interoperates with [CC Switch](https://github.com/farion1231/cc-switch) by reading its local provider selection and SQLite data schema. No CC Switch source is bundled.
+
+Runtime dependencies include the official [Model Context Protocol TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk), Inquirer, Zod, image-size, and smol-toml. Their respective license texts are distributed with their npm packages. The project license does not replace dependency licenses.

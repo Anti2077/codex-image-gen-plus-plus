@@ -35,12 +35,18 @@ codex-image-gen-plus-plus init
 ## 初始化
 
 1. 选择 **中文 / English**。
-2. 输入 API 基础地址和隐藏输入的 API Key。根地址 `https://api.example.com` 会补为 `/v1`；自定义 `/gateway/v1` 路径会保留。
+2. 选择**导入 CC Switch 当前配置**，或手动输入 API 地址和隐藏输入的 API Key。根地址 `https://api.example.com` 会补为 `/v1`；自定义 `/gateway/v1` 路径会保留。
 3. 调用 `/models` 检查连接和认证，显示模型列表。**不会自动发起收费生图**；其他 API 请求费用遵循提供商政策。
 4. 选择是否注册到 Codex。通过官方 `codex mcp add` 更新同名配置；找不到 CLI 时，显示手动配置用的 TOML。
 5. 建议将生成的说明手动复制到 **Codex 个性化提示词**，让图片任务优先使用本 MCP。不会自动修改个性化设置。
 
 完成后重启 Codex 或新开对话。配置中不固定模型，也不固定保存目录。
+
+### 导入 CC Switch 当前提供商
+
+在 `init` 选择导入，接受默认 `~/.cc-switch` 数据目录，或输入自定义目录。也可以通过 `CODEX_IMAGE_GEN_CCS_DIR` 指定默认位置。程序读取 `settings.json`，并**只读**打开 `cc-switch.db`。优先使用本机 `currentProviderCodex`；本机记录不存在或已失效时，使用数据库唯一的 `is_current` Codex 提供商。只解析所选提供商的 `settings_config`，从激活的 TOML 模型提供商配置中提取地址和对应 API Key，不猜其他表、不默认选第一个提供商。
+
+密钥导入后保持隐藏，接着进行正常的 `/models` 连接检查。这是**一次性复制**到本工具自己的私有配置；之后在 CC Switch 切换提供商不会自动切换图片接口，需要重新运行 `init` 导入。不会修改 CC Switch 文件。支持 API Key 提供商，不导入 ChatGPT OAuth 登录令牌或代理占位密钥；导入失败会继续手动配置。不支持旧版纯 JSON 数据库。Node.js 22 导入时可能显示内置 SQLite 的实验功能提示。
 
 可以对 Codex 说：
 

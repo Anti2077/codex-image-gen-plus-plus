@@ -36,6 +36,7 @@
     "@inquirer/prompts": "8.7.3",
     "@modelcontextprotocol/sdk": "1.32.1",
     "image-size": "2.0.4",
+    "smol-toml": "1.9.1",
     "zod": "4.6.7"
   },
   "devDependencies": {

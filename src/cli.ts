@@ -8,6 +8,7 @@ import { APP, DISPLAY_NAME, VERSION, configPath, loadConfig, normalizeBaseUrl, p
 import { listModels } from './api.js';
 import { getJob, runWorker } from './jobs.js';
 import { serve } from './server.js';
+import { ccSwitchDirectory, importCCSwitch, type ImportedProvider } from './cc-switch.js';
 
 async function codexCommand(): Promise<{ command: string; prefix: string[] }> {
   if (process.platform !== 'win32') return { command: 'codex', prefix: [] };
@@ -52,12 +53,28 @@ async function init(): Promise<void> {
   let previous: Config | undefined;
   try { previous = await readStoredConfig(); }
   catch { console.error(t('原配置无法读取，将重新配置。', 'Previous configuration could not be read; configuring again.')); }
-  const baseUrl = normalizeBaseUrl(await input({
+  const source = await select({ message: t('如何配置图片提供商？', 'How would you like to configure the image provider?'), choices: [
+    { name: t('导入 CC Switch 当前 Codex 提供商', 'Import the current Codex provider from CC Switch'), value: 'cc-switch' },
+    { name: t('手动输入 API 地址和密钥', 'Enter the API URL and key manually'), value: 'manual' }
+  ] });
+  let imported: ImportedProvider | undefined;
+  if (source === 'cc-switch') {
+    const directory = await input({ message: t('CC Switch 数据目录', 'CC Switch data directory'), default: ccSwitchDirectory() });
+    try {
+      imported = await importCCSwitch(directory);
+      console.log(t(`已读取当前 Codex 提供商：${imported.providerName}\nAPI 地址：${imported.baseUrl}\nAPI Key 已导入（隐藏）。`, `Imported current Codex provider: ${imported.providerName}\nAPI URL: ${imported.baseUrl}\nAPI key imported (hidden).`));
+      console.log(t('这是一次性导入；之后切换 CC Switch 提供商不会自动同步，可重新运行 init。', 'This is a one-time import. Future CC Switch changes are not synced; rerun init to import again.'));
+    } catch (error) {
+      console.error(safeError(error));
+      console.log(t('继续手动配置。', 'Continuing with manual setup.'));
+    }
+  }
+  const baseUrl = imported?.baseUrl ?? normalizeBaseUrl(await input({
     message: t('API 基础地址（根地址会补 /v1）', 'API base URL (a root URL gets /v1)'),
     default: previous?.baseUrl,
     validate: value => { try { normalizeBaseUrl(value); return true; } catch (error) { return safeError(error); } }
   }));
-  const enteredKey = await password({
+  const enteredKey = imported?.apiKey ?? await password({
     message: previous ? t('API Key（隐藏输入；留空保留原密钥）', 'API key (hidden; leave empty to keep the current key)') : t('API Key（隐藏输入）', 'API key (hidden)'),
     mask: '*',
     validate: value => (!!value.trim() || !!previous?.apiKey) && !/[\r\n]/.test(value) || t('请输入单行 API Key。', 'Enter a single-line API key.')
