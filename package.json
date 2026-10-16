@@ -1,0 +1,45 @@
+{
+  "name": "codex-image-gen-plus-plus",
+  "version": "0.1.0",
+  "description": "codex-image-gen++: configurable image generation and editing MCP for Codex",
+  "type": "module",
+  "license": "MIT",
+  "author": "Anti2077",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Anti2077/codex-image-gen-plus-plus.git"
+  },
+  "homepage": "https://github.com/Anti2077/codex-image-gen-plus-plus#readme",
+  "bugs": {
+    "url": "https://github.com/Anti2077/codex-image-gen-plus-plus/issues"
+  },
+  "bin": {
+    "codex-image-gen-plus-plus": "dist/cli.js"
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "README.zh-CN.md",
+    "LICENSE",
+    "THIRD_PARTY_NOTICES.md"
+  ],
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "scripts": {
+    "build": "tsc",
+    "check": "tsc --noEmit",
+    "prepack": "npm run build",
+    "start": "node dist/cli.js serve"
+  },
+  "dependencies": {
+    "@inquirer/prompts": "8.7.3",
+    "@modelcontextprotocol/sdk": "1.32.1",
+    "image-size": "2.0.4",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@types/node": "26.6.5",
+    "typescript": "7.0.2"
+  }
+}
