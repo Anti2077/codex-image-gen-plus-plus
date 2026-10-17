@@ -67,7 +67,7 @@ Codex 先获取模型列表，再传入准确的模型 ID。列表和名称提�
 
 输出扩展名 `.png`、`.jpg` / `.jpeg`、`.webp` 决定 `output_format`。不会覆盖已有文件。`n: 2` 时，例如 `fox.png` 会保存为 `fox-1.png`、`fox-2.png`。返回实际尺寸、字节数、SHA-256，以及是否符合指定尺寸。尺寸来自图片文件头，不代表完整解码检查；Codex 应继续查看图片。
 
-**推荐由 Codex 指定当前工作区内的绝对路径，默认使用 `output/imagegen/`。** MCP 进程的启动目录可能与聊天工作区不同，不能靠相对路径猜。MCP 负责写入图片字节，返回路径和元数据，避免把大段 Base64 塞入上下文。本地 MCP 使用运行账户的文件权限；工作区范围由 Codex 遵守，服务端没有强制工作区文件沙箱。
+**推荐由 Codex 指定当前工作区内的绝对路径，默认使用 `output/imagegen/`。** MCP 进程的启动目录可能与聊天工作区不同，不能靠相对路径猜。MCP 负责写入图片字节，返回路径和元数据，避免把大段 Base64 塞入上下文。本地 MCP 使用运行账户的文件权限。开启工作区保护后会限制输出范围，参考图读取不受此限制。程序会拒绝已有的符号链接/目录联接逃逸，但不替代操作系统沙箱，也无法防御另一个进程同时恶意替换目录。
 
 ## 耗时请求与失败处理
 
@@ -96,11 +96,13 @@ API 地址要求 HTTPS，本地回环开发地址允许 HTTP。带 API Key 的�
 | macOS | `~/Library/Application Support/codex-image-gen-plus-plus/config.json` |
 | Linux | `$XDG_CONFIG_HOME/codex-image-gen-plus-plus/config.json`，未设置则用 `~/.config/...` |
 
-API Key **以明文保存在本机配置文件**，不会写进项目或 Codex TOML。POSIX 新建目录/文件权限为 700/600，Windows 使用用户目录继承的 ACL；没有集成系统钥匙串，请妥善保管。
+init 可以选择本地私有配置文件（兼容模式，默认）或系统密钥库（macOS Keychain、Windows 凭据库、Linux Secret Service）；选择系统密钥库时，配置文件只保存引用和接口设置。MCP 进程会缓存密钥；生图后台进程通过一次性私有管道接收，每张图无需再次读取密钥库。新 MCP 进程、密钥库锁定或应用身份变化时，系统仍可能要求授权；程序不会绕过系统认证。Linux 需要可用的 Secret Service 会话，不回退到重启后丢失的内核密钥环。密钥库不可用时可在 `init` 选择本地私有配置文件，POSIX 新建目录/文件权限为 700/600，Windows 使用用户目录继承的 ACL。不要把密钥放进项目或 Codex TOML。
 
 可选环境变量：`CODEX_IMAGE_GEN_CONFIG`（建议绝对路径）、`CODEX_IMAGE_GEN_BASE_URL`、`CODEX_IMAGE_GEN_API_KEY`。不要把密钥放入命令参数、代码仓库或聊天。默认上游超时为 600 秒，配置中的 `timeoutSeconds` 可设为 1–3600。
 
-任务记录放在配置文件旁的 `jobs/` 下，包含提示词、输入/输出路径、状态和元数据，**不另存 API Key**。记录保留至你手动删除；不再需要时可清理已完成任务的 JSON。图片和提示词会发送给配置的提供商；结果链接由本机下载。本项目没有分析统计接口。
+`init` 还可以开启工作区保护并指定一个已存在的绝对目录；开启后输出文件必须位于该目录内，输出目录中的符号链接/目录联接逃逸也会被拒绝。未开启时仍要求 Codex 使用当前工作区内的绝对路径，但服务端允许其他绝对路径。
+
+任务记录放在配置文件旁的 `jobs/` 下，包含提示词、输入/输出路径、状态和元数据，**不另存 API Key**。MCP 启动时会自动清理 7 天前的已完成/失败记录；配置中的 jobRetentionDays 设为 0 可关闭自动清理，或设置为 1–3650 天。运行中、排队中、格式异常及无法识别的记录会保留；不会删除图片。图片和提示词会发送给配置的提供商；结果链接由本机下载。本项目没有分析统计接口。
 
 ## 常用命令
 
@@ -115,7 +117,15 @@ codex-image-gen-plus-plus job <job-id>
 
 `doctor` 检查 `/models`，不发起收费生图。需要换地址/密钥时重新运行 `init`。PowerShell 若因脚本执行策略拦截 npm 命令，可改用 `codex-image-gen-plus-plus.cmd init`。
 
-断开 Codex：`codex mcp remove codex-image-gen-plus-plus`。清除密钥和历史需要另行删除配置/任务目录。全局安装包可用 `npm uninstall -g codex-image-gen-plus-plus` 卸载。
+断开 Codex：`codex mcp remove codex-image-gen-plus-plus`。文件存储模式下，清除密钥和历史需要另行删除配置/任务目录。系统密钥库模式还需要在系统凭据管理器中删除 codex-image-gen-plus-plus 条目。移动配置文件会改变密钥引用，移动后需重新 init。全局安装包可用 `npm uninstall -g codex-image-gen-plus-plus` 卸载。
+
+清理旧任务记录（不会删除生成图片）：
+
+```sh
+codex-image-gen-plus-plus jobs clean       # 清理 7 天前的已完成/失败记录
+codex-image-gen-plus-plus jobs clean --days 30 --dry-run  # 先查看可清理数量
+codex-image-gen-plus-plus jobs clean --days 30            # 执行清理
+```
 
 ## 开发
 

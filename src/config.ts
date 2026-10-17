@@ -2,18 +2,23 @@ import { mkdir, readFile, rename, rm, writeFile, chmod } from 'node:fs/promises'
 import { homedir } from 'node:os';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
+import { readKey, type CredentialMode } from './credentials.js';
 
 export const APP = 'codex-image-gen-plus-plus';
 export const DISPLAY_NAME = 'codex-image-gen++';
-export const VERSION = '0.1.0';
+export const VERSION = '0.2.0';
 export type Language = 'zh-CN' | 'en';
 export interface Config {
   version: 1;
   language: Language;
   baseUrl: string;
-  apiKey: string;
+  apiKey?: string;
+  credentialMode?: CredentialMode;
+  workspaceRoot?: string;
+  jobRetentionDays?: number;
   timeoutSeconds: number;
 }
+export type RuntimeConfig = Config & { apiKey: string };
 
 export function configPath(): string {
   if (process.env.CODEX_IMAGE_GEN_CONFIG) return path.resolve(process.env.CODEX_IMAGE_GEN_CONFIG);
@@ -60,17 +65,24 @@ export async function readStoredConfig(): Promise<Config | undefined> {
   let raw: string;
   try { raw = await readFile(configPath(), 'utf8'); }
   catch (error) { if ((error as NodeJS.ErrnoException).code === 'ENOENT') return; throw error; }
-  const value = JSON.parse(raw) as Config;
-  if (value.version !== 1 || !['en', 'zh-CN'].includes(value.language) ||
-      typeof value.baseUrl !== 'string' || typeof value.apiKey !== 'string') {
+  let value: Config;
+  try { value = JSON.parse(raw) as Config; }
+  catch { throw new Error(`Invalid configuration JSON. Run ${APP} init again.`); }
+  if (!value || value.version !== 1 || !['en', 'zh-CN'].includes(value.language) ||
+      typeof value.baseUrl !== 'string' ||
+      (value.apiKey !== undefined && typeof value.apiKey !== 'string') ||
+      (value.credentialMode !== undefined && !['file', 'keychain'].includes(value.credentialMode)) ||
+      (value.workspaceRoot !== undefined && (typeof value.workspaceRoot !== 'string' || !path.isAbsolute(value.workspaceRoot))) ||
+      (value.jobRetentionDays !== undefined && (!Number.isInteger(value.jobRetentionDays) || value.jobRetentionDays < 0 || value.jobRetentionDays > 3650))) {
     throw new Error(`Invalid configuration. Run ${APP} init again.`);
   }
   return value;
 }
 
-export async function loadConfig(): Promise<Config> {
+export async function loadConfig(): Promise<RuntimeConfig> {
   const stored = await readStoredConfig();
-  const apiKey = (process.env.CODEX_IMAGE_GEN_API_KEY || stored?.apiKey || '').trim();
+  const mode = stored?.credentialMode ?? 'file';
+  const apiKey = (process.env.CODEX_IMAGE_GEN_API_KEY || (mode === 'keychain' ? await readKey(mode) : stored?.apiKey) || '').trim();
   const baseUrl = process.env.CODEX_IMAGE_GEN_BASE_URL || stored?.baseUrl || '';
   if (!apiKey || !baseUrl) throw new Error(`Configuration missing. Run ${APP} init.`);
   if (/[\r\n]/.test(apiKey)) throw new Error('The API key must be a single line.');
@@ -78,7 +90,7 @@ export async function loadConfig(): Promise<Config> {
   if (!Number.isInteger(timeoutSeconds) || timeoutSeconds < 1 || timeoutSeconds > 3600) {
     throw new Error('timeoutSeconds must be an integer between 1 and 3600.');
   }
-  return { version: 1, language: stored?.language ?? 'en', baseUrl: normalizeBaseUrl(baseUrl), apiKey, timeoutSeconds };
+  return { version: 1, language: stored?.language ?? 'en', baseUrl: normalizeBaseUrl(baseUrl), apiKey, credentialMode: mode, workspaceRoot: stored?.workspaceRoot, jobRetentionDays: stored?.jobRetentionDays ?? 7, timeoutSeconds };
 }
 
 export async function writePrivateJson(file: string, value: unknown): Promise<void> {
@@ -93,6 +105,6 @@ export async function writePrivateJson(file: string, value: unknown): Promise<vo
 
 export function personalization(language: Language): string {
   return language === 'zh-CN'
-    ? `需要生成或编辑图片时，优先使用 ${APP} MCP。先调用 list_models 查看当前提供商可见的模型，根据用户需求选择模型，不要编造模型 ID。模型列表不保证实际生图权限。由你决定提示词、参数及工作区内的绝对输出路径；未指定位置时使用当前工作区的 output/imagegen/。调用 generate_image 或 edit_image；如果返回任务编号，使用 get_job 查询结果，不要重复提交。不要覆盖原图；完成后查看生成文件并向用户展示。不要读取或输出 API Key。`
-    : `Prefer the ${APP} MCP for image generation and editing. Call list_models to discover the current provider's visible models and choose one for the user's needs; do not invent model IDs. A model listing does not prove generation access. Choose the prompt, parameters, and an absolute output path inside the current workspace; default to output/imagegen/ within that workspace. Use generate_image or edit_image. If a job ID is returned, use get_job to retrieve it instead of submitting again. Preserve original images. Inspect and show the saved result. Never read or reveal the API key.`;
+    ? `需要生成或编辑图片时，优先使用 ${APP} MCP。`
+    : `When generating or editing images, prefer the ${APP} MCP.`;
 }

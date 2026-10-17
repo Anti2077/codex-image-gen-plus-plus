@@ -11,4 +11,4 @@ No source files from those projects are bundled. They do not endorse or maintain
 
 The importer interoperates with [CC Switch](https://github.com/farion1231/cc-switch) by reading its local provider selection and SQLite data schema. No CC Switch source is bundled.
 
-Runtime dependencies include the official [Model Context Protocol TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk), Inquirer, Zod, image-size, and smol-toml. Their respective license texts are distributed with their npm packages. The project license does not replace dependency licenses.
+Runtime dependencies include the official [Model Context Protocol TypeScript SDK](https://github.com/modelcontextprotocol/typescript-sdk), Inquirer, Zod, image-size, smol-toml, and the optional [@napi-rs/keyring](https://github.com/Brooooooklyn/keyring-node) binding. Their respective license texts are distributed with their npm packages. The project license does not replace dependency licenses.

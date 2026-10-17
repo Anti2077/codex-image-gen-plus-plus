@@ -1,9 +1,10 @@
 import { imageSize } from 'image-size';
-import { open, mkdir, unlink } from 'node:fs/promises';
+import { open, unlink } from 'node:fs/promises';
 import type { FileHandle } from 'node:fs/promises';
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { type Config, cleanText, safeError, validateUrl } from './config.js';
+import { prepareOutput } from './paths.js';
 
 const MAX_IMAGE_BYTES = 50 * 1024 * 1024;
 const MAX_RESPONSE_BYTES = 192 * 1024 * 1024;
@@ -206,6 +207,7 @@ async function decodeOutput(item: unknown, config: Config): Promise<Buffer> {
 
 export async function executeImage(config: Config, input: ImageInput, edit: boolean) {
   validateImageInput(input, edit);
+  await prepareOutput(input.output_path, config.workspaceRoot);
   const format = formatForPath(input.output_path);
   const n = input.n ?? 1;
   const parsed = path.parse(input.output_path);
@@ -226,8 +228,8 @@ export async function executeImage(config: Config, input: ImageInput, edit: bool
   try {
     // Reserve every destination before starting a paid request; exclusive opens never replace files.
     for (const file of paths) {
-      await mkdir(path.dirname(file), { recursive: true });
-      try { reservations.push({ file, handle: await open(file, 'wx', 0o600), saved: false }); }
+      const destination = await prepareOutput(file, config.workspaceRoot, true);
+      try { reservations.push({ file: destination, handle: await open(destination, 'wx', 0o600), saved: false }); }
       catch (error) {
         if ((error as NodeJS.ErrnoException).code === 'EEXIST') throw new ImageError(`Output already exists: ${file}. Choose a new filename.`, 'OUTPUT_EXISTS');
         throw error;

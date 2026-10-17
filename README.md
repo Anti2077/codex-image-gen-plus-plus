@@ -67,7 +67,7 @@ Generation/edit arguments: `model`, `prompt`, `output_path`; optional `size`, `q
 
 Output extension `.png`, `.jpg` / `.jpeg`, or `.webp` sets `output_format`. Existing files are never overwritten. With `n: 2` and `output_path: /absolute/workspace/output/imagegen/fox.png`, files are `fox-1.png` and `fox-2.png`. Output reports measured dimensions, bytes, SHA-256, and whether a requested explicit size matches. Dimensions come from image headers, not a complete image-decoding check; Codex should inspect the saved image.
 
-Use **absolute paths inside the current workspace**. The MCP process's working directory may differ from the chat's workspace. Codex chooses the destination and the server writes the bytes directly, returning paths and metadata instead of large Base64 blobs. This local MCP has the filesystem permissions of the account running it; absolute paths are required, but workspace containment is an agent instruction, not an enforced filesystem sandbox.
+Use **absolute paths inside the current workspace**. The MCP process's working directory may differ from the chat's workspace. Codex chooses the destination and the server writes the bytes directly, returning paths and metadata instead of large Base64 blobs. This local MCP has the filesystem permissions of the account running it. Optional workspace protection enforces an output root; it does not restrict reference-image reads or isolate the entire process. It rejects existing symlink/junction escapes, but does not replace an OS sandbox against another process concurrently replacing directories.
 
 ## Long requests and failures
 
@@ -96,11 +96,13 @@ API URLs require HTTPS, with HTTP allowed for loopback development. API authenti
 | macOS | `~/Library/Application Support/codex-image-gen-plus-plus/config.json` |
 | Linux | `$XDG_CONFIG_HOME/codex-image-gen-plus-plus/config.json`, or `~/.config/...` |
 
-The API key is stored as **plaintext in the local config file**, not in the project or Codex TOML. POSIX directories/files are created with modes 700/600; Windows uses inherited user-directory ACLs. There is no keychain integration. Keep the file private.
+During init, choose the private config file (the compatibility default) or the system credential store (macOS Keychain, Windows Credential Manager, or Linux Secret Service). In system-store mode, the config file keeps only the credential mode and provider settings. The MCP process caches the key, and a detached worker receives it through a one-time private pipe, so each image does not require a new credential-store lookup. The OS may still ask for access on a new MCP process, locked store, or changed application identity; this tool does not bypass OS authentication. Linux requires an unlocked Secret Service session; no volatile kernel-keyring fallback is used. If the credential store is unavailable, `init` can use the private config-file compatibility mode. POSIX directories/files use modes 700/600; Windows uses inherited user-directory ACLs. Keep the config file private when using compatibility mode.
 
 Optional environment overrides: `CODEX_IMAGE_GEN_CONFIG` (absolute config path recommended), `CODEX_IMAGE_GEN_BASE_URL`, `CODEX_IMAGE_GEN_API_KEY`. Do not put keys in terminal command arguments, source control, or chat. The default provider timeout is 600 seconds; `timeoutSeconds` in config accepts 1–3600.
 
-Jobs are stored beside config under `jobs/`, containing prompts, input/output paths, status and metadata, **without copying the API key**. They persist until you delete them; remove completed job JSON files when no longer needed. Images and prompts are sent to your configured provider; signed result URLs are fetched locally. This project has no analytics endpoint.
+`init` can also enable workspace protection and store an existing absolute workspace root. With protection enabled, output files must stay inside that root and symlink/junction escapes in output directories are rejected. Without it, Codex is still instructed to use absolute paths in the current workspace, but the server permits other absolute paths.
+
+Jobs are stored beside config under `jobs/`, containing prompts, input/output paths, status and metadata, **without copying the API key**. On MCP startup, completed/failed records older than 7 days are removed automatically. Set jobRetentionDays to 0 in config to disable automatic cleanup, or set 1–3650 days. Running/queued, malformed, and unrecognized records are retained; images are never removed. Images and prompts are sent to your configured provider; signed result URLs are fetched locally. This project has no analytics endpoint.
 
 ## Commands
 
@@ -115,7 +117,15 @@ codex-image-gen-plus-plus job <job-id>
 
 `doctor` checks `/models`, not a paid generation. Rerun `init` to change the provider or key. On PowerShell, if script execution policy prevents npm command shims, use `codex-image-gen-plus-plus.cmd init` instead.
 
-To disconnect, run `codex mcp remove codex-image-gen-plus-plus`. Remove the config/jobs directory separately if you want to delete the stored key and history. Uninstall a global package with `npm uninstall -g codex-image-gen-plus-plus`.
+To disconnect, run `codex mcp remove codex-image-gen-plus-plus`. For file storage, remove the config/jobs directory separately to delete the key and history. For system storage, remove the codex-image-gen-plus-plus credential in your OS credential manager too. Moving the config file changes its credential reference; rerun init after moving it. Uninstall a global package with `npm uninstall -g codex-image-gen-plus-plus`.
+
+Clean old job records without deleting generated images:
+
+```sh
+codex-image-gen-plus-plus jobs clean       # completed/failed records older than 7 days
+codex-image-gen-plus-plus jobs clean --days 30 --dry-run  # preview eligible records
+codex-image-gen-plus-plus jobs clean --days 30            # delete records
+```
 
 ## Development
 

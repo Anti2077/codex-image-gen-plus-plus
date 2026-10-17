@@ -1,9 +1,9 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { z } from 'zod';
-import { APP, DISPLAY_NAME, VERSION, loadConfig, safeError } from './config.js';
+import { APP, DISPLAY_NAME, VERSION, loadConfig, readStoredConfig, safeError } from './config.js';
 import { listModels } from './api.js';
-import { getJob, startJob } from './jobs.js';
+import { cleanJobs, getJob, startJob } from './jobs.js';
 
 const imageFields = {
   model: z.string().min(1).max(256).describe('Exact model ID from list_models. Never invent or silently replace it.'),
@@ -32,6 +32,10 @@ async function guarded(action: () => Promise<unknown>) {
 }
 
 export async function serve(): Promise<void> {
+  try {
+    const days = (await readStoredConfig())?.jobRetentionDays ?? 7;
+    if (days > 0) await cleanJobs(days);
+  } catch { console.error('Job history cleanup skipped; records were retained.'); }
   const server = new McpServer({ name: APP, version: VERSION }, {
     instructions: `${DISPLAY_NAME} uses a user-configured OpenAI-compatible Image API. First list_models, then choose an exact model ID; name hints do not prove capabilities. Choose absolute input/output paths in the current workspace, never assume this server's working directory is the project. Prefer output/imagegen/ for results. Generate/edit may return a pending job after 15 seconds; poll get_job, never resubmit the same request. No automatic provider retries or model fallback. Inspect saved images and show them using their absolute paths. Never ask for or read stored API keys.`
   });
